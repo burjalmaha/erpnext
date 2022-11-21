@@ -78,6 +78,8 @@ frappe.ui.form.on("Sales Order", {
 		});
 
 		erpnext.queries.setup_warehouse_query(frm);
+
+		frm.ignore_doctypes_on_cancel_all = ['Purchase Order'];
 	},
 
 	delivery_date: function(frm) {
@@ -317,7 +319,7 @@ erpnext.selling.SalesOrderController = erpnext.selling.SellingController.extend(
 						title: __('Select Items to Manufacture'),
 						fields: fields,
 						primary_action: function() {
-							var data = d.get_values();
+							var data = {items: d.fields_dict.items.grid.get_selected_children()};
 							me.frm.call({
 								method: 'make_work_orders',
 								args: {
@@ -455,12 +457,8 @@ erpnext.selling.SalesOrderController = erpnext.selling.SellingController.extend(
 	make_delivery_note_based_on_delivery_date: function() {
 		var me = this;
 
-		var delivery_dates = [];
-		$.each(this.frm.doc.items || [], function(i, d) {
-			if(!delivery_dates.includes(d.delivery_date)) {
-				delivery_dates.push(d.delivery_date);
-			}
-		});
+		var delivery_dates = this.frm.doc.items.map(i => i.delivery_date);
+		delivery_dates = [ ...new Set(delivery_dates) ];
 
 		var item_grid = this.frm.fields_dict["items"].grid;
 		if(!item_grid.get_selected().length && delivery_dates.length > 1) {
@@ -498,14 +496,7 @@ erpnext.selling.SalesOrderController = erpnext.selling.SellingController.extend(
 
 				if(!dates) return;
 
-				$.each(dates, function(i, d) {
-					$.each(item_grid.grid_rows || [], function(j, row) {
-						if(row.doc.delivery_date == d) {
-							row.doc.__checked = 1;
-						}
-					});
-				})
-				me.make_delivery_note();
+				me.make_delivery_note(dates);
 				dialog.hide();
 			});
 			dialog.show();
@@ -514,10 +505,13 @@ erpnext.selling.SalesOrderController = erpnext.selling.SellingController.extend(
 		}
 	},
 
-	make_delivery_note: function() {
+	make_delivery_note: function(delivery_dates) {
 		frappe.model.open_mapped_doc({
 			method: "erpnext.selling.doctype.sales_order.sales_order.make_delivery_note",
-			frm: this.frm
+			frm: this.frm,
+			args: {
+				delivery_dates
+			}
 		})
 	},
 
