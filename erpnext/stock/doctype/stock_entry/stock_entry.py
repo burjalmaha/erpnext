@@ -420,9 +420,13 @@ class StockEntry(StockController):
 				)
 
 	def set_actual_qty(self):
-		allow_negative_stock = cint(frappe.db.get_value("Stock Settings", None, "allow_negative_stock"))
-
+		# old code
+		# allow_negative_stock = cint(frappe.db.get_value("Stock Settings", None, "allow_negative_stock"))
 		for d in self.get('items'):
+			# new code starts
+			processed_warehouse = frappe.get_all("Warehouse", filters={"name":d.s_warehouse or d.t_warehouse}, fields=["_allow_negative_stock"])[0]
+			allow_negative_stock = cint(processed_warehouse["_allow_negative_stock"])
+			# new code ends
 			previous_sle = get_previous_sle({
 				"item_code": d.item_code,
 				"warehouse": d.s_warehouse or d.t_warehouse,
