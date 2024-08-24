@@ -30,6 +30,9 @@ def make_gl_entries(gl_map, cancel=False, adv_adj=False, merge_entries=True, upd
 			make_reverse_gl_entries(gl_map, adv_adj=adv_adj, update_outstanding=update_outstanding)
 
 def validate_accounting_period(gl_map):
+	if gl_map[0].voucher_type == "Journal Entry":
+		if frappe.flags.is_from_payment_reconciliation:
+			return
 	accounting_periods = frappe.db.sql(""" SELECT
 			ap.name as name
 		FROM
