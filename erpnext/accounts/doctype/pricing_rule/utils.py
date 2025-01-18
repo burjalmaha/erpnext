@@ -103,8 +103,6 @@ def _get_pricing_rules(apply_on, args, values):
 		item_conditions = "{child_doc}.{apply_on_field}= %({apply_on_field})s".format(child_doc=child_doc,
 			apply_on_field = apply_on_field)
 
-		conditions += " and {child_doc}.uom = {uom}".format(child_doc=child_doc, uom=frappe.db.escape(args.get('uom')))
-
 		if apply_on_field == 'item_code':
 			if "variant_of" not in args:
 				args.variant_of = frappe.get_cached_value("Item", args.item_code, "variant_of")
@@ -113,7 +111,6 @@ def _get_pricing_rules(apply_on, args, values):
 				item_variant_condition = ' or {child_doc}.item_code=%(variant_of)s '.format(child_doc=child_doc)
 				values['variant_of'] = args.variant_of
 	elif apply_on_field == 'item_group':
-		conditions += " and {child_doc}.uom = {uom}".format(child_doc=child_doc, uom=frappe.db.escape(args.get('uom')))
 		item_conditions = _get_tree_conditions(args, "Item Group", child_doc, False)
 
 	conditions += get_other_conditions(conditions, values, args)
@@ -125,6 +122,9 @@ def _get_pricing_rules(apply_on, args, values):
 
 	conditions += " and ifnull(`tabPricing Rule`.for_price_list, '') in (%(price_list)s, '')"
 	values["price_list"] = args.get("price_list")
+
+	if apply_on != 'Transaction':
+		conditions += " and {child_doc}.uom = {uom}".format(child_doc=child_doc, uom=frappe.db.escape(args.get('uom')))
 
 	pricing_rules = frappe.db.sql("""select `tabPricing Rule`.*,
 			{child_doc}.{apply_on_field}, {child_doc}.uom
@@ -244,7 +244,8 @@ def filter_pricing_rules(args, pricing_rules, doc=None):
 				amount += data[1]
 
 		if pricing_rules[0].apply_rule_on_other and not pricing_rules[0].mixed_conditions and doc:
-			pricing_rules = get_qty_and_rate_for_other_item(doc, pr_doc, pricing_rules) or []
+			if args.get('qty') != 123456789:
+				pricing_rules = get_qty_and_rate_for_other_item(doc, pr_doc, pricing_rules) or []
 		else:
 			pricing_rules = filter_pricing_rules_for_qty_amount(stock_qty, amount, pricing_rules, args)
 

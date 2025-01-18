@@ -1619,6 +1619,7 @@ erpnext.TransactionController = erpnext.taxes_and_totals.extend({
 	},
 
 	apply_rule_on_other_items: function(args) {
+		if (this.frm.doc.doctype == 'POS Invoice') return; // disabled apply rule on other items in POS Invoice
 		const me = this;
 		const fields = ["discount_percentage", "pricing_rules", "discount_amount", "rate"];
 

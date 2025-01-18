@@ -259,7 +259,7 @@ def get_pricing_rule_for_item(args, price_list_rate=0, doc=None, for_validate=Fa
 			item_details = remove_pricing_rule_for_item(args.get("pricing_rules"),
 				item_details, args.get('item_code'))
 		return item_details
-
+	if doc and doc.get("doctype") == "POS Invoice": return item_details # disabled apply rule in POS Invoice Pricing rule are managed in POS Page
 	update_args_for_pricing_rule(args)
 
 	pricing_rules = (get_applied_pricing_rules(args.get('pricing_rules'))
@@ -306,6 +306,9 @@ def get_pricing_rule_for_item(args, price_list_rate=0, doc=None, for_validate=Fa
 		item_details.has_pricing_rule = 1
 
 		item_details.pricing_rules = frappe.as_json([d.pricing_rule for d in rules])
+
+		if item_details.get('doctype') == 'POS Invoice Item' and item_details.get('discount_amount', 0) <= 0:
+			item_details.pricing_rules = None
 
 		if not doc: return item_details
 
