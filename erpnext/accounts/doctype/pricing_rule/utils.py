@@ -155,18 +155,22 @@ def _get_pricing_rules(apply_on, args, values):
 		pr_r = pricing_rules[0]
 		usable_count_ok = 1
 		remove_pricing_rule = 0
+		is_usable_pricing_rule = cint(pr_r.get("usable_count", 0))
+		useable_by = pr_r.get("useable_by")
+		allowed_usable_count = pr_r.get("max_qty", 0) if useable_by == "Max QTY" else is_usable_pricing_rule
+
 		if pr_r.get('apply_rule_on_other', None):
 			if pr_r.get(apply_on_field) == args.get(apply_on_field) or args.get('parenttype') == 'POS Invoice':
 				remove_pricing_rule = 1
 
-		if (pr_r.get('usable_count', 0) > 0 or pr_r.get('app_users_only', 0)) and args.get('parenttype') == 'POS Invoice':
-			if pr_r.get('usable_count', 0) > 0:
+		if (is_usable_pricing_rule > 0 or pr_r.get('app_users_only', 0)) and args.get('parenttype') == 'POS Invoice':
+			if is_usable_pricing_rule > 0:
 				if args.get('customer'):
 					used_count = get_pr_usage_count(pr_r.get("name"), args.get('customer'), args.get('item_code'), args.get('uom'))
 					if isinstance(used_count, dict):
 						used_count = used_count.get('usage_count', 0)
 
-					if used_count >= pr_r.get('usable_count', 0):
+					if used_count >= allowed_usable_count:
 						remove_pricing_rule = 1
 						usable_count_ok = 0
 				else:
