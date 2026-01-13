@@ -167,9 +167,6 @@ def _get_pricing_rules(apply_on, args, values):
 			if is_usable_pricing_rule > 0:
 				if args.get('customer'):
 					used_count = get_pr_usage_count(pr_r.get("name"), args.get('customer'), args.get('item_code'), args.get('uom'))
-					if isinstance(used_count, dict):
-						used_count = used_count.get('usage_count', 0)
-
 					if used_count >= allowed_usable_count:
 						remove_pricing_rule = 1
 						usable_count_ok = 0
