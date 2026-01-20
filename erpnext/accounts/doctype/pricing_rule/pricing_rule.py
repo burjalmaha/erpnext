@@ -351,6 +351,9 @@ def get_pricing_rule_details(args, pricing_rule):
 		'child_docname': args.get('child_docname')
 	})
 
+def get_sync_settings():
+    return frappe.get_doc("Sync Settings")
+
 def apply_price_discount_rule(pricing_rule, item_details, args):
 	item_details.pricing_rule_for = pricing_rule.rate_or_discount
 
@@ -372,12 +375,14 @@ def apply_price_discount_rule(pricing_rule, item_details, args):
 		if pricing_rule_rate:
 			# Override already set price list rate (from item price)
 			# if pricing_rule_rate > 0
-			if not item_details.get('current_price_list_rate', 0.0):
+			sync_settings = get_sync_settings()
+			price_list_rate_field = "current_price_list_rate" if sync_settings.is_sub_server else "price_list_rate"
+			if not item_details.get(price_list_rate_field, 0.0):
 				frappe.throw(_("Current Price List Rate is not set for item {0}").format(item_details.get('item_code')))
 			item_details.update({
-				"price_list_rate": item_details.get('current_price_list_rate', 0.0),
+				"price_list_rate": item_details.get(price_list_rate_field, 0.0),
 				"new_rate": pricing_rule_rate,
-				"discount_amount": flt(item_details.get('current_price_list_rate', 0.0) - pricing_rule_rate, 2),
+				"discount_amount": flt(item_details.get(price_list_rate_field, 0.0) - pricing_rule_rate, 2),
 			})
 			pricing_rule.pricing_rule_for = "Discount Amount"
 		item_details.update({
