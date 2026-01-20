@@ -377,12 +377,13 @@ def apply_price_discount_rule(pricing_rule, item_details, args):
 			# if pricing_rule_rate > 0
 			sync_settings = get_sync_settings()
 			price_list_rate_field = "current_price_list_rate" if sync_settings.is_sub_server else "price_list_rate"
-			if not item_details.get(price_list_rate_field, 0.0):
-				frappe.throw(_("Current Price List Rate is not set for item {0}").format(item_details.get('item_code')))
+			pricing_rule_rate_value = item_details.get(price_list_rate_field, 0.0) or args.get(price_list_rate_field, 0.0)
+			if not pricing_rule_rate_value:
+				frappe.throw(_("Current Price List Rate is not set for item {0}").format(item_details.get('item_code') or args.get('item_code')))
 			item_details.update({
-				"price_list_rate": item_details.get(price_list_rate_field, 0.0),
+				"price_list_rate": pricing_rule_rate_value,
 				"new_rate": pricing_rule_rate,
-				"discount_amount": flt(item_details.get(price_list_rate_field, 0.0) - pricing_rule_rate, 2),
+				"discount_amount": flt(pricing_rule_rate_value - pricing_rule_rate, 2),
 			})
 			pricing_rule.pricing_rule_for = "Discount Amount"
 		item_details.update({
