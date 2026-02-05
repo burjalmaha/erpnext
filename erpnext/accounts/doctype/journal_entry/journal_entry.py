@@ -36,6 +36,12 @@ class JournalEntry(AccountsController):
 	def __init__(self, *args, **kwargs):
 		super(JournalEntry, self).__init__(*args, **kwargs)
 
+	def validate_workflow(self):
+		# Bypass workflow for asset depreciation entries
+		if self.flags.get("from_asset_depreciation"):
+			return
+		super(JournalEntry, self).validate_workflow()
+
 	def get_feed(self):
 		return self.voucher_type
 
