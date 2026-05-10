@@ -192,6 +192,18 @@ class PayrollEntry(Document):
 
 	def get_salary_components(self, component_type):
 		salary_slips = self.get_sal_slip_list(ss_status = 1, as_dict = True)
+
+		branch_filter = getattr(self, "_branch_filter", None)
+		if salary_slips and branch_filter:
+			slip_names = [d.name for d in salary_slips]
+			slip_branches = frappe.get_all(
+				"Salary Slip",
+				filters={"name": ["in", slip_names]},
+				fields=["name", "branch"],
+			)
+			allowed = {d.name for d in slip_branches if d.branch == branch_filter}
+			salary_slips = [d for d in salary_slips if d.name in allowed]
+
 		if salary_slips:
 			salary_components = frappe.db.sql("""
 				select ssd.salary_component, ssd.amount, ssd.parentfield, ss.payroll_cost_center, ss.employee
@@ -244,6 +256,41 @@ class PayrollEntry(Document):
 
 	def make_accrual_jv_entry(self):
 		self.check_permission("write")
+
+		# Per-branch split: when no branch is set on the Payroll Entry, generate
+		# one JE per branch (sourced from Salary Slip.branch) so that the
+		# mandatory branch field on each Journal Entry Account row is populated
+		# and each JE balances per branch.
+		if not self.branch and not getattr(self, "_branch_filter", None):
+			slips = self.get_sal_slip_list(ss_status=1, as_dict=True)
+			if slips:
+				slip_branches = frappe.get_all(
+					"Salary Slip",
+					filters={"name": ["in", [d.name for d in slips]]},
+					fields=["branch"],
+					distinct=True,
+				)
+				branch_list = sorted({(b.branch or "") for b in slip_branches})
+				if any(b for b in branch_list):
+					if "" in branch_list:
+						frappe.throw(_(
+							"Some submitted Salary Slips have no branch set. "
+							"Set the employee's branch on the Salary Slip before submitting payroll."
+						))
+					jv_names = []
+					try:
+						for branch in branch_list:
+							self.branch = branch
+							self._branch_filter = branch
+							name = self.make_accrual_jv_entry()
+							if name:
+								jv_names.append(name)
+					finally:
+						self.branch = None
+						if hasattr(self, "_branch_filter"):
+							del self._branch_filter
+					return ", ".join(jv_names)
+
 		# Check if employee-wise accounting is enabled
 		employee_wise_accounting_enabled = 1
 
