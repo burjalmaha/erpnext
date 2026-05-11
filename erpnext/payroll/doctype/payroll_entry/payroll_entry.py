@@ -479,6 +479,20 @@ class PayrollEntry(Document):
 
 	def update_salary_slip_status(self, jv_name = None):
 		ss_list = self.get_sal_slip_list(ss_status=1)
+
+		# When running the per-branch split, only link slips of the current branch
+		# so subsequent branch iterations still see their slips as unlinked.
+		branch_filter = getattr(self, "_branch_filter", None)
+		if branch_filter and ss_list:
+			slip_names = [ss[0] for ss in ss_list]
+			slip_branches = frappe.get_all(
+				"Salary Slip",
+				filters={"name": ["in", slip_names]},
+				fields=["name", "branch"],
+			)
+			allowed = {d.name for d in slip_branches if d.branch == branch_filter}
+			ss_list = [ss for ss in ss_list if ss[0] in allowed]
+
 		for ss in ss_list:
 			ss_obj = frappe.get_doc("Salary Slip",ss[0])
 			frappe.db.set_value("Salary Slip", ss_obj.name, "journal_entry", jv_name)
