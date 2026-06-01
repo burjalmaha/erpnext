@@ -121,7 +121,7 @@ class Item(Document):
 		self.validate_customer_provided_part()
 		self.update_defaults_from_item_group()
 		self.validate_item_defaults()
-		self.validate_auto_reorder_enabled_in_stock_settings()
+		# self.validate_auto_reorder_enabled_in_stock_settings() # no need for it as we have our own logic
 		self.cant_change()
 		self.validate_item_tax_net_rate_range()
 		set_item_tax_from_hsn_code(self)
