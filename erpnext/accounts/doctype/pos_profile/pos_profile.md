@@ -99,6 +99,25 @@ These three options let you lock down how much a cashier can change item quantit
   - **Custom Selling Settings → Enable Card Refund By Default** — the company-wide default this field overrides.
   - **POS Profile User → Card Refund** — a more specific, per-cashier override that takes priority over this field (see the next section).
 
+## Stock
+
+### Disable Sales for Negative Stock
+- **What it controls:** Whether this register may sell stock it does not physically have, driving the balance negative.
+- **Effect when enabled:** The cashier cannot put more of an item in the cart than the register's warehouse actually holds. Adding the item, pressing "+", typing a quantity on the number pad, or scanning it again is refused with a message naming the item and the quantity still available, and the cart keeps the quantity it had. The sale is also refused at submission, even if the stock ran out while the basket was open.
+- **Effect when disabled (the default):** The register follows the company-wide **Stock Settings → Allow Negative Stock**. If that is on, selling into negative stock is permitted, exactly as before.
+- **How it works:**
+  1. When the cashier adds an item or raises its quantity, the register reads the item's current balance in the profile's warehouse.
+  2. Everything already in the cart for that same item counts against the balance — including rows added under a different barcode or unit, and scale (PLU) rows — so the same stock cannot be sold twice by splitting it across cart lines.
+  3. Quantities in a selling unit (a case, a box) are converted to the stock unit before being compared, so a case of 12 is weighed against 12 pieces on hand.
+  4. Lowering a quantity or removing an item is never blocked.
+  5. Items that have no stock balance to check — non-stock items, such as goods sold by weight that are not stock-tracked — are passed over and can always be sold. Product Bundles are checked by how many can be assembled from their parts.
+  6. The balance used is what is genuinely left to sell: the warehouse quantity minus anything already claimed by POS invoices that have been made but not yet consolidated at day end. So a quantity another register has just sold is already gone, even before the paperwork catches up.
+  7. When the cashier opens the payment screen, the whole basket is weighed against the warehouse once more. Another register may have sold the same stock in the meantime, and this is the last moment to catch it before money changes hands.
+- **Example:** Head office allows negative stock company-wide so its warehouse can keep selling while paperwork catches up. A small branch must not oversell, so you tick this box on the branch's POS Profile. With 3 pieces on hand, the branch cashier scans a fourth and is told "Not enough stock … Available quantity: 3". Every other register keeps selling as before.
+- **Related settings:**
+  - **Stock Settings → Allow Negative Stock** — the company-wide switch this field overrides. Ticking this box forces the check on at this register no matter what the company-wide setting says; leaving it clear means this register simply follows the company-wide setting.
+  - **POS Profile → Warehouse** — the warehouse whose balance is checked.
+
 ## Applicable for Users — per-cashier settings
 
 The **Applicable for Users** table on this POS Profile lists the cashiers allowed on the register. Each row (a *POS Profile User* — a child table with no screen of its own) can carry per-cashier overrides, edited inline in that table. The custom fields on each row are:
