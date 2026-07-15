@@ -104,7 +104,7 @@ These three options let you lock down how much a cashier can change item quantit
 ### Disable Sales for Negative Stock
 - **What it controls:** Whether this register may sell stock it does not physically have, driving the balance negative.
 - **Effect when enabled:** The cashier cannot put more of an item in the cart than the register's warehouse actually holds. Adding the item, pressing "+", typing a quantity on the number pad, or scanning it again is refused with a message naming the item and the quantity still available, and the cart keeps the quantity it had. The sale is also refused at submission, even if the stock ran out while the basket was open.
-- **Effect when disabled (the default):** The register follows the company-wide **Stock Settings → Allow Negative Stock**. If that is on, selling into negative stock is permitted, exactly as before.
+- **Effect when disabled (the default):** This register does not check stock at the till — items can be added and sold regardless of the warehouse balance. This box is the only thing that turns the check on; the company-wide **Stock Settings → Allow Negative Stock** does not affect it.
 - **How it works:**
   1. When the cashier adds an item or raises its quantity, the register reads the item's current balance in the profile's warehouse.
   2. Everything already in the cart for that same item counts against the balance — including rows added under a different barcode or unit, and scale (PLU) rows — so the same stock cannot be sold twice by splitting it across cart lines.
@@ -115,7 +115,6 @@ These three options let you lock down how much a cashier can change item quantit
   7. When the cashier opens the payment screen, the whole basket is weighed against the warehouse once more. Another register may have sold the same stock in the meantime, and this is the last moment to catch it before money changes hands.
 - **Example:** Head office allows negative stock company-wide so its warehouse can keep selling while paperwork catches up. A small branch must not oversell, so you tick this box on the branch's POS Profile. With 3 pieces on hand, the branch cashier scans a fourth and is told "Not enough stock … Available quantity: 3". Every other register keeps selling as before.
 - **Related settings:**
-  - **Stock Settings → Allow Negative Stock** — the company-wide switch this field overrides. Ticking this box forces the check on at this register no matter what the company-wide setting says; leaving it clear means this register simply follows the company-wide setting.
   - **POS Profile → Warehouse** — the warehouse whose balance is checked.
 
 ## Applicable for Users — per-cashier settings
