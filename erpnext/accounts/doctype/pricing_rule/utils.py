@@ -10,7 +10,16 @@ import json
 
 import frappe
 from frappe import _, bold
-from frappe.utils import cint, flt, fmt_money, get_link_to_form, getdate, today
+from frappe.utils import (
+	cint,
+	flt,
+	fmt_money,
+	get_link_to_form,
+	get_time,
+	getdate,
+	nowtime,
+	today,
+)
 
 from erpnext.setup.doctype.item_group.item_group import get_child_item_groups
 from erpnext.stock.doctype.warehouse.warehouse import get_child_warehouses
@@ -150,6 +159,9 @@ def _get_pricing_rules(apply_on, args, values):
 			apply_on_other_field = "other_{0}".format(apply_on_field),
 			conditions = conditions), values, as_dict=1) or []
 
+	# the SQL above filters on the validity dates; the daily time window is applied here
+	pricing_rules = filter_pricing_rules_for_time(pricing_rules, args)
+
 	# dont not apply rule for the main item in pricing rule for POS Page, this will be managed from POS Page
 	if len(pricing_rules) >= 1:
 		pr_r = pricing_rules[0]
@@ -246,6 +258,70 @@ def get_other_conditions(conditions, values, args):
 		values['transaction_date'] = args.get('transaction_date')
 
 	return conditions
+
+def is_time_set(value):
+	# 00:00:00 arrives from the database as timedelta(0), which is falsy but is a real value
+	return value is not None and value != ""
+
+def seconds_since_midnight(value):
+	time_value = get_time(value)
+	return (time_value.hour * 3600) + (time_value.minute * 60) + time_value.second
+
+def is_within_time_window(from_time, to_time, current_time):
+	"""Does a Pricing Rule's daily From Time / To Time window cover `current_time`?
+
+	Valid From / Valid Upto decide which days the rule is live; this window decides
+	the hours within each of those days. Both fields blank means all day, which is
+	what every rule created before these fields existed looks like. A To Time
+	earlier than the From Time reads as a window crossing midnight (22:00 -> 02:00).
+	"""
+	from_set, to_set = is_time_set(from_time), is_time_set(to_time)
+
+	if not from_set and not to_set:
+		return True
+
+	now = seconds_since_midnight(current_time)
+
+	if from_set and to_set:
+		start, end = seconds_since_midnight(from_time), seconds_since_midnight(to_time)
+
+		if start <= end:
+			return start <= now <= end
+
+		return now >= start or now <= end
+
+	if from_set:
+		return now >= seconds_since_midnight(from_time)
+
+	return now <= seconds_since_midnight(to_time)
+
+def get_transaction_time(args, doc=None):
+	"""Time of day a Pricing Rule's window is measured against.
+
+	Documents carrying their own posting time are judged by it, so re-saving a
+	backdated invoice is not priced at the clock time of the edit. Quotations and
+	orders only have a date, so they fall back to the server time.
+	"""
+	for source in (args, doc):
+		if source is None:
+			continue
+
+		for fieldname in ("transaction_time", "posting_time"):
+			value = source.get(fieldname)
+			if is_time_set(value):
+				return value
+
+	return nowtime()
+
+def filter_pricing_rules_for_time(pricing_rules, args, doc=None):
+	"""Drop rules whose daily time window does not cover the transaction's time."""
+	if not pricing_rules:
+		return pricing_rules
+
+	current_time = get_transaction_time(args, doc)
+
+	return [rule for rule in pricing_rules
+		if is_within_time_window(rule.get("from_time"), rule.get("to_time"), current_time)]
 
 def filter_pricing_rules(args, pricing_rules, doc=None):
 	if not isinstance(pricing_rules, list):
@@ -498,6 +574,8 @@ def apply_pricing_rule_on_transaction(doc):
 	pricing_rules = frappe.db.sql(""" Select `tabPricing Rule`.* from `tabPricing Rule`
 		where  {conditions} and `tabPricing Rule`.disable = 0
 	""".format(conditions = conditions), values, as_dict=1)
+
+	pricing_rules = filter_pricing_rules_for_time(pricing_rules, doc)
 
 	if pricing_rules:
 		pricing_rules = filter_pricing_rules_for_qty_amount(doc.total_qty,

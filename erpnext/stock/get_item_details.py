@@ -69,6 +69,10 @@ def get_item_details(args, doc=None, for_validate=False, overwrite_warehouse=Tru
 		args['posting_date'] = doc.get('posting_date')
 		args['transaction_date'] = doc.get('transaction_date')
 
+		# Pricing Rules with a daily time window are matched against this
+		if doc.get('posting_time'):
+			args['posting_time'] = doc.get('posting_time')
+
 	get_item_tax_template(args, item, out)
 	out["item_tax_rate"] = get_item_tax_map(args.company, args.get("item_tax_template") if out.get("item_tax_template") is None \
 		else out.get("item_tax_template"), as_json=True)
