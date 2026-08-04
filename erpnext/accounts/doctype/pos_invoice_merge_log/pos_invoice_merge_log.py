@@ -137,7 +137,7 @@ class POSInvoiceMergeLog(Document):
             if doc.gift_card_amount:
                 gift_card_amount_sum += doc.gift_card_amount
                 invoice.gift_card_account = gift_card_setting.gift_card_account
-                invoice.git_card_cost_center = gift_card_setting.cost_center
+                invoice.gift_card_cost_center = gift_card_setting.cost_center
 
             for item in doc.get('items'):
                 found = False
@@ -188,7 +188,7 @@ class POSInvoiceMergeLog(Document):
             invoice.gift_card_used = 1
             invoice.gift_card_account = gift_card_setting.gift_card_account
             invoice.gift_card_amount = gift_card_amount_sum
-            invoice.git_card_cost_center = gift_card_setting.cost_center
+            invoice.gift_card_cost_center = gift_card_setting.cost_center
         invoice.set('items', items)
         invoice.set('payments', payments)
         invoice.set('taxes', taxes)

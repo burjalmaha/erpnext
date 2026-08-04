@@ -1110,7 +1110,7 @@ class SalesInvoice(SellingController):
 			gl_entries.append(
 				self.get_gl_dict({
 					"account": self.get('gift_card_account'),
-					"cost_center": self.cost_center or self.get('git_card_cost_center'),
+					"cost_center": self.cost_center or self.get('gift_card_cost_center'),
 					"against": self.customer,
 					"debit": self.gift_card_amount,
 					"remark": "Gift Card by the customer"
