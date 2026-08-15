@@ -8,6 +8,7 @@ import unittest
 
 import frappe
 from frappe import MandatoryError
+from frappe.utils import add_days, nowdate
 
 from erpnext.accounts.doctype.sales_invoice.test_sales_invoice import create_sales_invoice
 from erpnext.healthcare.doctype.lab_test_template.lab_test_template import make_item_price
@@ -560,6 +561,98 @@ class TestPricingRule(unittest.TestCase):
 
 		for doc in [si, si1]:
 			doc.delete()
+
+	def test_pricing_rule_within_time_window(self):
+		skip_without_time_window_fields(self)
+
+		make_time_window_pricing_rule(from_time="09:00:00", to_time="17:00:00", discount_percentage=15)
+
+		self.assertEqual(discount_at("12:00:00"), 15)
+		self.assertEqual(discount_at("09:00:00"), 15)
+		self.assertEqual(discount_at("17:00:00"), 15)
+
+	def test_pricing_rule_outside_time_window(self):
+		skip_without_time_window_fields(self)
+
+		make_time_window_pricing_rule(from_time="09:00:00", to_time="17:00:00", discount_percentage=15)
+
+		self.assertEqual(discount_at("08:59:59"), 0)
+		self.assertEqual(discount_at("17:00:01"), 0)
+		self.assertEqual(discount_at("23:30:00"), 0)
+
+	def test_pricing_rule_with_overnight_time_window(self):
+		skip_without_time_window_fields(self)
+
+		make_time_window_pricing_rule(from_time="22:00:00", to_time="02:00:00", discount_percentage=25)
+
+		self.assertEqual(discount_at("23:30:00"), 25)
+		self.assertEqual(discount_at("01:00:00"), 25)
+		self.assertEqual(discount_at("22:00:00"), 25)
+		self.assertEqual(discount_at("02:00:00"), 25)
+		self.assertEqual(discount_at("14:00:00"), 0)
+
+	def test_pricing_rule_without_time_window_applies_all_day(self):
+		skip_without_time_window_fields(self)
+
+		make_time_window_pricing_rule(from_time=None, to_time=None, discount_percentage=5)
+
+		self.assertEqual(discount_at("00:00:00"), 5)
+		self.assertEqual(discount_at("12:00:00"), 5)
+		self.assertEqual(discount_at("23:59:59"), 5)
+
+	def test_pricing_rule_with_expired_validity_dates(self):
+		make_pricing_rule(selling=1, discount_percentage=30, title="_Test Expired Pricing Rule")
+		frappe.db.set_value("Pricing Rule", "_Test Expired Pricing Rule", {
+			"valid_from": add_days(nowdate(), -10),
+			"valid_upto": add_days(nowdate(), -1),
+		})
+
+		args = pricing_rule_args()
+		args.transaction_date = nowdate()
+		self.assertEqual(get_item_details(args).get("discount_percentage"), 0)
+
+	def test_overlapping_pricing_rules_with_time_windows(self):
+		skip_without_time_window_fields(self)
+
+		make_time_window_pricing_rule(from_time=None, to_time=None,
+			discount_percentage=5, title="_Test All Day Rule", priority=1)
+		make_time_window_pricing_rule(from_time="16:00:00", to_time="19:00:00",
+			discount_percentage=20, title="_Test Happy Hour Rule", priority=2)
+
+		# inside the window the higher priority rule wins, outside it the all day rule is all that is left
+		self.assertEqual(discount_at("17:00:00"), 20)
+		self.assertEqual(discount_at("20:00:00"), 5)
+
+def pricing_rule_args():
+	return frappe._dict({
+		"item_code": "_Test Item",
+		"company": "_Test Company",
+		"price_list": "_Test Price List",
+		"currency": "_Test Currency",
+		"doctype": "Sales Order",
+		"conversion_rate": 1,
+		"price_list_currency": "_Test Currency",
+		"plc_conversion_rate": 1,
+		"order_type": "Sales",
+		"customer": "_Test Customer",
+		"name": None
+	})
+
+def skip_without_time_window_fields(case):
+	"""From Time / To Time are Custom Fields, so a plain ERPNext site will not have them."""
+	if not frappe.get_meta("Pricing Rule").has_field("from_time"):
+		case.skipTest("Pricing Rule From Time / To Time custom fields are not installed")
+
+def make_time_window_pricing_rule(from_time, to_time, discount_percentage, title=None, priority=1):
+	title = title or "_Test Time Window Pricing Rule"
+	make_pricing_rule(selling=1, discount_percentage=discount_percentage, title=title, priority=priority)
+	frappe.db.set_value("Pricing Rule", title, {"from_time": from_time, "to_time": to_time})
+
+def discount_at(posting_time):
+	"""Discount percentage the selection returns for a transaction posted at this time."""
+	args = pricing_rule_args()
+	args.posting_time = posting_time
+	return get_item_details(args).get("discount_percentage") or 0
 
 def make_pricing_rule(**args):
 	args = frappe._dict(args)

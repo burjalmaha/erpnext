@@ -98,6 +98,34 @@ These four fields plus the Calculate button form a small "what-if" calculator th
 
 ---
 
+## Time-of-day validity
+
+The standard **Valid From** and **Valid Upto** dates decide *which days* a rule is live. These two fields decide *which hours within each of those days* it is live — a happy hour, a breakfast offer, a night-shift price. A rule with both fields empty applies all day, so every rule created before these fields existed keeps behaving exactly as it did.
+
+### From Time
+- **What it controls:** The time of day the rule starts applying, on every day inside its valid-from / valid-upto range.
+- **Effect when set / enabled:** Before this time the rule is not offered at all — the item is priced as if the rule did not exist. Leaving it empty and setting only a To Time means the rule applies from the start of the day until that To Time.
+- **How it works:**
+  1. Every time a price is worked out — on a quotation, order, invoice, purchase document or at the POS — the system first narrows the rules down to those valid on the transaction's date.
+  2. It then compares the transaction's time against this window and drops any rule whose window does not cover it.
+  3. The time it compares against is the document's own **Posting Time** where the document has one (sales invoices, purchase invoices, POS invoices, delivery notes). Documents that only carry a date — quotations, sales orders, purchase orders — are compared against the current time instead.
+  4. Because the document's own posting time is used, re-saving a backdated invoice re-prices it at the time it was posted, not at the time you happen to be editing it.
+- **Example:** A rule valid 1–31 March with From Time 16:00 and To Time 19:00 gives its discount on an invoice posted at 17:30 on 12 March, and gives nothing on an invoice posted at 20:00 the same day or at 17:30 on 2 April.
+- **Related settings:** Works together with **To Time** below and with the standard **Valid From** / **Valid Upto** dates, which decide the days.
+
+### To Time
+- **What it controls:** The time of day the rule stops applying, on every day inside its valid-from / valid-upto range.
+- **Effect when set / enabled:** After this time the rule is no longer offered. Leaving it empty and setting only a From Time means the rule applies from that From Time until the end of the day.
+- **How it works:**
+  1. Both boundaries are **inclusive**: a window of 09:00 to 17:00 still applies at exactly 09:00:00 and at exactly 17:00:00, and stops at 17:00:01.
+  2. If the To Time is **earlier** than the From Time, the window is read as crossing midnight. A window of 22:00 to 02:00 is live from 22:00 until midnight and again from midnight until 02:00.
+  3. An overnight window is still limited by the validity dates, so on the last valid day it runs from 22:00 to the end of that day, and on the first valid day it also covers the early-morning stretch up to 02:00.
+  4. From Time and To Time may not be set to the same value — that could mean either "no time at all" or "the whole day", and the system cannot tell which. To apply a rule all day, leave both empty.
+- **Example:** A night-shift rule with From Time 22:00 and To Time 02:00 applies to a POS sale rung up at 23:40 and to one at 01:15, but not to one at 14:00.
+- **Related settings:** Works together with **From Time** above. When several rules overlap at the same moment, the standard **Priority** field decides which one wins, exactly as it does without time windows.
+
+---
+
 ## Expiry reminders
 
 ### Remind On Expire
