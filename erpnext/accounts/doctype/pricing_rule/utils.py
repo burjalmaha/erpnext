@@ -273,7 +273,9 @@ def is_within_time_window(from_time, to_time, current_time):
 	Valid From / Valid Upto decide which days the rule is live; this window decides
 	the hours within each of those days. Both fields blank means all day, which is
 	what every rule created before these fields existed looks like. A To Time
-	earlier than the From Time reads as a window crossing midnight (22:00 -> 02:00).
+	earlier than the From Time reads as a window crossing midnight (22:00 -> 02:00),
+	and a To Time equal to the From Time reads as all day -- the only other reading
+	is a window one second long, which would leave the rule silently never firing.
 	"""
 	from_set, to_set = is_time_set(from_time), is_time_set(to_time)
 
@@ -285,7 +287,10 @@ def is_within_time_window(from_time, to_time, current_time):
 	if from_set and to_set:
 		start, end = seconds_since_midnight(from_time), seconds_since_midnight(to_time)
 
-		if start <= end:
+		if start == end:
+			return True
+
+		if start < end:
 			return start <= now <= end
 
 		return now >= start or now <= end

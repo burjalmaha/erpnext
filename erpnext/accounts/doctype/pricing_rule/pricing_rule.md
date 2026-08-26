@@ -100,7 +100,7 @@ These four fields plus the Calculate button form a small "what-if" calculator th
 
 ## Time-of-day validity
 
-The standard **Valid From** and **Valid Upto** dates decide *which days* a rule is live. These two fields decide *which hours within each of those days* it is live — a happy hour, a breakfast offer, a night-shift price. A rule with both fields empty applies all day, so every rule created before these fields existed keeps behaving exactly as it did.
+The standard **Valid From** and **Valid Upto** dates decide *which days* a rule is live. These two fields decide *which hours within each of those days* it is live — a happy hour, a breakfast offer, a night-shift price. Both fields are optional. A rule with both fields empty applies all day, so every rule created before these fields existed keeps behaving exactly as it did.
 
 ### From Time
 - **What it controls:** The time of day the rule starts applying, on every day inside its valid-from / valid-upto range.
@@ -120,7 +120,7 @@ The standard **Valid From** and **Valid Upto** dates decide *which days* a rule 
   1. Both boundaries are **inclusive**: a window of 09:00 to 17:00 still applies at exactly 09:00:00 and at exactly 17:00:00, and stops at 17:00:01.
   2. If the To Time is **earlier** than the From Time, the window is read as crossing midnight. A window of 22:00 to 02:00 is live from 22:00 until midnight and again from midnight until 02:00.
   3. An overnight window is still limited by the validity dates, so on the last valid day it runs from 22:00 to the end of that day, and on the first valid day it also covers the early-morning stretch up to 02:00.
-  4. From Time and To Time may not be set to the same value — that could mean either "no time at all" or "the whole day", and the system cannot tell which. To apply a rule all day, leave both empty.
+  4. If the To Time is set to exactly the same value as the From Time, the rule applies all day, just as it does when both fields are left empty. The only other reading would be a window one second long, which would leave the rule silently never firing.
 - **Example:** A night-shift rule with From Time 22:00 and To Time 02:00 applies to a POS sale rung up at 23:40 and to one at 01:15, but not to one at 14:00.
 - **Related settings:** Works together with **From Time** above. When several rules overlap at the same moment, the standard **Priority** field decides which one wins, exactly as it does without time windows.
 

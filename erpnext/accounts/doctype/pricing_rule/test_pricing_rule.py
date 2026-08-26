@@ -600,6 +600,26 @@ class TestPricingRule(unittest.TestCase):
 		self.assertEqual(discount_at("12:00:00"), 5)
 		self.assertEqual(discount_at("23:59:59"), 5)
 
+	def test_pricing_rule_with_identical_times_saves(self):
+		skip_without_time_window_fields(self)
+
+		make_pricing_rule(selling=1, discount_percentage=8, title="_Test Identical Times Rule")
+
+		rule = frappe.get_doc("Pricing Rule", "_Test Identical Times Rule")
+		rule.from_time = "12:00:00"
+		rule.to_time = "12:00:00"
+		rule.save()  # identical times must not block the save
+
+	def test_pricing_rule_with_identical_times_applies_all_day(self):
+		skip_without_time_window_fields(self)
+
+		# the alternative reading is a one second window, which would never fire
+		make_time_window_pricing_rule(from_time="12:00:00", to_time="12:00:00", discount_percentage=8)
+
+		self.assertEqual(discount_at("00:00:00"), 8)
+		self.assertEqual(discount_at("12:00:00"), 8)
+		self.assertEqual(discount_at("23:59:59"), 8)
+
 	def test_pricing_rule_with_expired_validity_dates(self):
 		make_pricing_rule(selling=1, discount_percentage=30, title="_Test Expired Pricing Rule")
 		frappe.db.set_value("Pricing Rule", "_Test Expired Pricing Rule", {

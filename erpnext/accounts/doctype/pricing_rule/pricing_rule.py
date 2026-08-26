@@ -31,7 +31,6 @@ class PricingRule(Document):
 		self.validate_max_discount()
 		self.validate_price_list_with_currency()
 		self.validate_dates()
-		self.validate_times()
 		self.validate_condition()
 
 		if not self.margin_type: self.margin_rate_or_amount = 0.0
@@ -151,24 +150,6 @@ class PricingRule(Document):
 
 		if self.valid_from and self.valid_upto and getdate(self.valid_from) > getdate(self.valid_upto):
 			frappe.throw(_("Valid from date must be less than valid upto date"))
-
-	def validate_times(self):
-		"""From Time / To Time restrict the rule to a window inside each valid day.
-
-		Equal times are rejected because they read either as a zero-length window
-		or as the whole day, and the two are impossible to tell apart.
-		"""
-		# imported here: utils reaches back into this module through get_item_details
-		from erpnext.accounts.doctype.pricing_rule.utils import (
-			is_time_set,
-			seconds_since_midnight,
-		)
-
-		if not is_time_set(self.from_time) or not is_time_set(self.to_time):
-			return
-
-		if seconds_since_midnight(self.from_time) == seconds_since_midnight(self.to_time):
-			frappe.throw(_("From Time and To Time cannot be the same. Leave both empty to apply the rule all day."))
 
 	def validate_condition(self):
 		if self.condition and ("=" in self.condition) and re.match(r'[\w\.:_]+\s*={1}\s*[\w\.@\'"]+', self.condition):
