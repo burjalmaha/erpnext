@@ -423,7 +423,13 @@ class AccountsController(TransactionBase):
 		cur_pricing_rule = get_applied_pricing_rules(pricing_rule_args.get("pricing_rules"))[0]
 		cur_pricing_rule_doc = frappe.get_cached_doc("Pricing Rule", cur_pricing_rule)
 		if cur_pricing_rule_doc.get('is_qty_multiple'):
-			if item.get("qty") < cur_pricing_rule_doc.get("min_qty"):
+			# a mix-and-match row (stamped pricing_rule_bundle by the POS) earned the rule
+			# together with its bundle mates, so it is judged by the bundle's qty
+			qty = item.get("qty")
+			if item.get("pricing_rule_bundle"):
+				qty = sum(flt(d.get("qty")) for d in self.get("items")
+					if d.get("pricing_rule_bundle") == item.get("pricing_rule_bundle"))
+			if qty < cur_pricing_rule_doc.get("min_qty"):
 				item.set("pricing_rules", None)
 				pricing_rule_args['pricing_rules'] = None
 				return
