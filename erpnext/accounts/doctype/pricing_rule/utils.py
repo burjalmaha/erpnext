@@ -6,6 +6,7 @@
 from __future__ import unicode_literals
 
 import copy
+import datetime
 import json
 
 import frappe
@@ -14,9 +15,11 @@ from frappe.utils import (
 	cint,
 	flt,
 	fmt_money,
+	get_datetime,
 	get_link_to_form,
 	get_time,
 	getdate,
+	nowdate,
 	nowtime,
 	today,
 )
@@ -159,7 +162,8 @@ def _get_pricing_rules(apply_on, args, values):
 			apply_on_other_field = "other_{0}".format(apply_on_field),
 			conditions = conditions), values, as_dict=1) or []
 
-	# the SQL above filters on the validity dates; the daily time window is applied here
+	# the SQL above filters on the validity dates only; the time of day is applied here,
+	# in whichever of the two modes each rule asks for (see is_pricing_rule_active_at)
 	pricing_rules = filter_pricing_rules_for_time(pricing_rules, args)
 
 	# dont not apply rule for the main item in pricing rule for POS Page, this will be managed from POS Page
@@ -268,14 +272,14 @@ def seconds_since_midnight(value):
 	return (time_value.hour * 3600) + (time_value.minute * 60) + time_value.second
 
 def is_within_time_window(from_time, to_time, current_time):
-	"""Does a Pricing Rule's daily From Time / To Time window cover `current_time`?
+	"""Working Hours Mode, the hours half: does the daily From Time / To Time window cover `current_time`?
 
-	Valid From / Valid Upto decide which days the rule is live; this window decides
-	the hours within each of those days. Both fields blank means all day, which is
-	what every rule created before these fields existed looks like. A To Time
-	earlier than the From Time reads as a window crossing midnight (22:00 -> 02:00),
-	and a To Time equal to the From Time reads as all day -- the only other reading
-	is a window one second long, which would leave the rule silently never firing.
+	Only the time of day is compared, so the window repeats on every day the rule is
+	valid (is_within_date_range is the days half). Both fields blank means all day. A
+	To Time earlier than the From Time reads as a window crossing midnight (22:00 -> 06:00
+	is live from 22:00 until midnight and again until 06:00), and a To Time equal to the
+	From Time reads as all day -- the only other reading is a window one second long,
+	which would leave the rule silently never firing.
 	"""
 	from_set, to_set = is_time_set(from_time), is_time_set(to_time)
 
@@ -300,8 +304,111 @@ def is_within_time_window(from_time, to_time, current_time):
 
 	return now <= seconds_since_midnight(to_time)
 
+def is_within_date_range(valid_from, valid_upto, current_date):
+	"""Working Hours Mode, the days half: is `current_date` one of the rule's valid days?
+
+	A blank bound is open, the same reading the selection query gives the two dates.
+	"""
+	current_date = getdate(current_date)
+
+	if valid_from and current_date < getdate(valid_from):
+		return False
+
+	if valid_upto and current_date > getdate(valid_upto):
+		return False
+
+	return True
+
+def get_validity_start(valid_from, from_time):
+	"""Continuous mode: the one moment a rule starts, or None when its start is open."""
+	if not valid_from:
+		return None
+
+	start_time = get_time(from_time) if is_time_set(from_time) else datetime.time.min
+	return datetime.datetime.combine(getdate(valid_from), start_time)
+
+def get_validity_end(valid_upto, to_time):
+	"""Continuous mode: the one moment a rule ends, or None when its end is open."""
+	if not valid_upto:
+		return None
+
+	end_time = get_time(to_time) if is_time_set(to_time) else datetime.time.max
+	return datetime.datetime.combine(getdate(valid_upto), end_time)
+
+def is_within_datetime_range(valid_from, from_time, valid_upto, to_time, current_datetime):
+	"""Continuous mode: does the one stretch from Valid From + From Time to Valid Upto + To Time cover `current_datetime`?
+
+	The dates and times form a single start and a single end moment, and the rule is
+	live for everything in between -- midnight included, however many days it spans.
+	Both boundaries are inclusive. A blank From Time means the start of the Valid From
+	day and a blank To Time the end of the Valid Upto day, which is how the dates alone
+	have always read. A blank date leaves that end open; a time without its date has
+	nothing to attach to and is ignored (the form refuses to save a rule like that).
+	"""
+	current_datetime = get_datetime(current_datetime)
+
+	start = get_validity_start(valid_from, from_time)
+	if start and current_datetime < start:
+		return False
+
+	end = get_validity_end(valid_upto, to_time)
+	if end and current_datetime > end:
+		return False
+
+	return True
+
+def uses_daily_time_restriction(rule):
+	"""Which reading of From Time / To Time a Pricing Rule asks for.
+
+	Working Hours Mode (use_daily_time_restriction) checked: Valid From / Valid Upto
+	decide the days and From Time / To Time the hours within each of those days.
+	Unchecked: date + time form one continuous range. A row that does not carry the
+	flag at all comes from a query, or a schema, that predates it -- daily hours was the
+	only behaviour then, so that is what such a row keeps, rather than the continuous
+	reading that would silently stretch a happy-hour rule across every night in its
+	date range.
+	"""
+	value = rule.get("use_daily_time_restriction")
+	if value is None:
+		return True
+
+	return bool(cint(value))
+
+def is_pricing_rule_active_at(rule, moment):
+	"""Is the rule live at `moment`, in whichever of the two modes it asks for?
+
+	This is the one place the two readings of Valid From / Valid Upto / From Time /
+	To Time meet; every selection path (item pricing, transaction-level rules, the
+	Item Board) goes through it.
+	"""
+	moment = get_datetime(moment)
+
+	if uses_daily_time_restriction(rule):
+		return (is_within_date_range(rule.get("valid_from"), rule.get("valid_upto"), moment.date())
+			and is_within_time_window(rule.get("from_time"), rule.get("to_time"), moment.time()))
+
+	return is_within_datetime_range(rule.get("valid_from"), rule.get("from_time"),
+		rule.get("valid_upto"), rule.get("to_time"), moment)
+
+def get_transaction_date(args, doc=None):
+	"""Date a Pricing Rule's validity is measured against.
+
+	The transaction's own date where it has one (the controllers copy posting_date
+	into transaction_date, but a caller may hand over either), the server date otherwise.
+	"""
+	for source in (args, doc):
+		if source is None:
+			continue
+
+		for fieldname in ("transaction_date", "posting_date"):
+			value = source.get(fieldname)
+			if value:
+				return value
+
+	return nowdate()
+
 def get_transaction_time(args, doc=None):
-	"""Time of day a Pricing Rule's window is measured against.
+	"""Time of day a Pricing Rule's validity is measured against.
 
 	Documents carrying their own posting time are judged by it, so re-saving a
 	backdated invoice is not priced at the clock time of the edit. Quotations and
@@ -318,15 +425,25 @@ def get_transaction_time(args, doc=None):
 
 	return nowtime()
 
+def get_transaction_datetime(args, doc=None):
+	"""The moment a Pricing Rule's validity is measured against: transaction date and time joined.
+
+	Both halves are naive values in the system time zone -- posting dates and times are
+	stored that way, and nowdate / nowtime are read that way -- so they combine without
+	any conversion.
+	"""
+	return datetime.datetime.combine(
+		getdate(get_transaction_date(args, doc)),
+		get_time(get_transaction_time(args, doc)))
+
 def filter_pricing_rules_for_time(pricing_rules, args, doc=None):
-	"""Drop rules whose daily time window does not cover the transaction's time."""
+	"""Drop rules that are not live at the transaction's moment, each in the mode it asks for."""
 	if not pricing_rules:
 		return pricing_rules
 
-	current_time = get_transaction_time(args, doc)
+	moment = get_transaction_datetime(args, doc)
 
-	return [rule for rule in pricing_rules
-		if is_within_time_window(rule.get("from_time"), rule.get("to_time"), current_time)]
+	return [rule for rule in pricing_rules if is_pricing_rule_active_at(rule, moment)]
 
 def filter_pricing_rules(args, pricing_rules, doc=None):
 	if not isinstance(pricing_rules, list):
