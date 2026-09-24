@@ -19,7 +19,15 @@ apply_on_dict = {"Item Code": "items",
 
 other_fields = ["other_item_code", "other_item_group", "other_brand"]
 
+# v13 stamps every empty Time field of a new document with the clock time
+# (create_new.set_dynamic_default_values). A blank From / To Time means the whole
+# Valid From / Valid Upto day (utils.is_within_datetime_range), so these stay blank.
+OPTIONAL_TIME_FIELDS = ("from_time", "to_time")
+
 class PricingRule(Document):
+	def __setup__(self):
+		self.dont_update_if_missing.extend(OPTIONAL_TIME_FIELDS)
+
 	def validate(self):
 		self.validate_mandatory()
 		self.validate_duplicate_apply_on()
@@ -426,7 +434,9 @@ def apply_price_discount_rule(pricing_rule, item_details, args):
 			item_details.update({
 				"price_list_rate": pricing_rule_rate_value,
 				"new_rate": pricing_rule_rate,
-				"discount_amount": flt(pricing_rule_rate_value - pricing_rule_rate, 2),
+				# at the rule's own precision: a Rate of 1.4875 must price at 1.4875, not 1.49
+				"discount_amount": flt(pricing_rule_rate_value - pricing_rule_rate,
+					frappe.get_precision("Pricing Rule", "rate")),
 			})
 			pricing_rule.pricing_rule_for = "Discount Amount"
 		item_details.update({
@@ -511,6 +521,7 @@ def set_transaction_type(args):
 @frappe.whitelist()
 def make_pricing_rule(doctype, docname):
 	doc = frappe.new_doc("Pricing Rule")
+	doc.update(dict.fromkeys(OPTIONAL_TIME_FIELDS))  # undo new_doc's clock-time stamp
 	doc.applicable_for = doctype
 	doc.set(frappe.scrub(doctype), docname)
 	doc.selling = 1 if doctype == "Customer" else 0

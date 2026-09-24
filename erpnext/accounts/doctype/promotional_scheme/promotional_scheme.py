@@ -8,6 +8,8 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from erpnext.accounts.doctype.pricing_rule.pricing_rule import OPTIONAL_TIME_FIELDS
+
 pricing_rule_fields = ['apply_on', 'mixed_conditions', 'is_cumulative', 'other_item_code', 'other_item_group',
 	'apply_rule_on_other', 'other_brand', 'selling', 'buying', 'applicable_for', 'valid_from',
 	'valid_upto', 'from_time', 'to_time', 'use_daily_time_restriction', 'customer', 'customer_group', 'territory',
@@ -23,6 +25,10 @@ product_discount_fields = ['free_item', 'free_qty', 'free_item_uom',
 	'free_item_rate', 'same_item', 'is_recursive', 'apply_multiple_pricing_rules']
 
 class PromotionalScheme(Document):
+	def __setup__(self):
+		# blank times are copied into every rule this scheme makes, see OPTIONAL_TIME_FIELDS
+		self.dont_update_if_missing.extend(OPTIONAL_TIME_FIELDS)
+
 	def validate(self):
 		if not self.selling and not self.buying:
 			frappe.throw(_("Either 'Selling' or 'Buying' must be selected"), title=_("Mandatory"))
