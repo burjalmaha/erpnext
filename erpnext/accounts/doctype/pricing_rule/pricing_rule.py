@@ -11,7 +11,7 @@ import re
 import frappe
 from frappe import _, throw
 from frappe.model.document import Document
-from frappe.utils import cint, flt, getdate
+from frappe.utils import cint, flt, format_datetime, getdate
 from six import string_types
 
 apply_on_dict = {"Item Code": "items",
@@ -150,6 +150,41 @@ class PricingRule(Document):
 
 		if self.valid_from and self.valid_upto and getdate(self.valid_from) > getdate(self.valid_upto):
 			frappe.throw(_("Valid from date must be less than valid upto date"))
+
+		self.validate_time_window()
+
+	def validate_time_window(self):
+		"""From Time / To Time are Custom Fields read in one of two modes (see
+		utils.uses_daily_time_restriction). In Working Hours Mode any pair of times is a
+		valid daily window -- an inverted pair simply crosses midnight. In continuous mode
+		each time is the clock part of its date, so it needs that date, and the start
+		moment must not fall after the end moment."""
+		from erpnext.accounts.doctype.pricing_rule.utils import (
+			get_validity_end,
+			get_validity_start,
+			is_time_set,
+			uses_daily_time_restriction,
+		)
+
+		if uses_daily_time_restriction(self):
+			return
+
+		def label(fieldname, fallback):
+			return frappe.bold(self.meta.get_label(fieldname) if self.meta.has_field(fieldname) else _(fallback))
+
+		mode = label("use_daily_time_restriction", "Working Hours Mode")
+
+		for time_field, date_field in (("from_time", "valid_from"), ("to_time", "valid_upto")):
+			if is_time_set(self.get(time_field)) and not self.get(date_field):
+				frappe.throw(_("{0} has no date to attach to. Set {1}, or enable {2} to read the times as daily hours.")
+					.format(label(time_field, time_field), label(date_field, date_field), mode))
+
+		start = get_validity_start(self.valid_from, self.get("from_time"))
+		end = get_validity_end(self.valid_upto, self.get("to_time"))
+
+		if start and end and start > end:
+			frappe.throw(_("The rule would start at {0}, after it ends at {1}. Enable {2} if the times are meant as a daily window.")
+				.format(frappe.bold(format_datetime(start)), frappe.bold(format_datetime(end)), mode))
 
 	def validate_condition(self):
 		if self.condition and ("=" in self.condition) and re.match(r'[\w\.:_]+\s*={1}\s*[\w\.@\'"]+', self.condition):

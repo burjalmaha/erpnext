@@ -643,6 +643,92 @@ class TestPricingRule(unittest.TestCase):
 		self.assertEqual(discount_at("17:00:00"), 20)
 		self.assertEqual(discount_at("20:00:00"), 5)
 
+	def test_pricing_rule_datetime_range_within_one_day(self):
+		skip_without_time_window_fields(self)
+
+		day = nowdate()
+		make_datetime_range_pricing_rule(day, "09:00:00", day, "17:00:00", discount_percentage=12)
+
+		self.assertEqual(discount_at("09:00:00", day), 12)  # exact start
+		self.assertEqual(discount_at("12:30:00", day), 12)
+		self.assertEqual(discount_at("17:00:00", day), 12)  # exact end
+		self.assertEqual(discount_at("08:59:59", day), 0)
+		self.assertEqual(discount_at("17:00:01", day), 0)
+
+	def test_pricing_rule_datetime_range_crossing_midnight(self):
+		skip_without_time_window_fields(self)
+
+		day, next_day = nowdate(), add_days(nowdate(), 1)
+		make_datetime_range_pricing_rule(day, "22:00:00", next_day, "06:00:00", discount_percentage=18)
+
+		# one uninterrupted stretch: midnight does not switch the rule off
+		self.assertEqual(discount_at("21:59:59", day), 0)
+		self.assertEqual(discount_at("22:00:00", day), 18)
+		self.assertEqual(discount_at("23:59:59", day), 18)
+		self.assertEqual(discount_at("00:00:00", next_day), 18)
+		self.assertEqual(discount_at("03:00:00", next_day), 18)
+		self.assertEqual(discount_at("06:00:00", next_day), 18)
+		self.assertEqual(discount_at("06:00:01", next_day), 0)
+		# and it is not a daily window: the evening of the last day is outside the range
+		self.assertEqual(discount_at("23:00:00", next_day), 0)
+
+	def test_pricing_rule_datetime_range_spanning_days(self):
+		skip_without_time_window_fields(self)
+
+		day = nowdate()
+		make_datetime_range_pricing_rule(day, "07:00:00", add_days(day, 3), "06:00:00", discount_percentage=7)
+
+		self.assertEqual(discount_at("06:59:59", day), 0)
+		self.assertEqual(discount_at("07:00:00", day), 7)
+		self.assertEqual(discount_at("15:00:00", add_days(day, 1)), 7)  # a full day in the middle
+		self.assertEqual(discount_at("03:00:00", add_days(day, 2)), 7)  # small hours, still live
+		self.assertEqual(discount_at("06:00:00", add_days(day, 3)), 7)
+		self.assertEqual(discount_at("06:00:01", add_days(day, 3)), 0)
+
+	def test_pricing_rule_working_hours_mode_versus_datetime_range(self):
+		skip_without_time_window_fields(self)
+
+		day, next_day = nowdate(), add_days(nowdate(), 1)
+		make_datetime_range_pricing_rule(day, "22:00:00", next_day, "06:00:00", discount_percentage=9)
+
+		# the same four values read as a daily window once Working Hours Mode is on
+		self.assertEqual(discount_at("02:00:00", day), 0)
+		frappe.db.set_value("Pricing Rule", "_Test Datetime Range Pricing Rule", "use_daily_time_restriction", 1)
+		self.assertEqual(discount_at("02:00:00", day), 9)
+		self.assertEqual(discount_at("23:00:00", next_day), 9)
+		self.assertEqual(discount_at("12:00:00", next_day), 0)
+
+	def test_pricing_rule_datetime_range_needs_date_for_time(self):
+		skip_without_time_window_fields(self)
+
+		make_pricing_rule(selling=1, discount_percentage=5, title="_Test Dangling Time Rule")
+		rule = frappe.get_doc("Pricing Rule", "_Test Dangling Time Rule")
+		rule.use_daily_time_restriction = 0
+		rule.valid_upto = None
+		rule.to_time = "18:00:00"
+		self.assertRaises(frappe.ValidationError, rule.save)
+
+		rule.reload()
+		rule.use_daily_time_restriction = 1
+		rule.to_time = "18:00:00"
+		rule.save()  # a daily window has no such requirement
+
+	def test_pricing_rule_datetime_range_rejects_inverted_range(self):
+		skip_without_time_window_fields(self)
+
+		make_pricing_rule(selling=1, discount_percentage=5, title="_Test Inverted Range Rule")
+		rule = frappe.get_doc("Pricing Rule", "_Test Inverted Range Rule")
+		rule.use_daily_time_restriction = 0
+		rule.valid_from = rule.valid_upto = nowdate()
+		rule.from_time, rule.to_time = "18:00:00", "08:00:00"
+		self.assertRaises(frappe.ValidationError, rule.save)
+
+		rule.reload()
+		rule.use_daily_time_restriction = 1
+		rule.valid_from = rule.valid_upto = nowdate()
+		rule.from_time, rule.to_time = "18:00:00", "08:00:00"
+		rule.save()  # in Working Hours Mode the same pair is a window crossing midnight
+
 def pricing_rule_args():
 	return frappe._dict({
 		"item_code": "_Test Item",
@@ -664,13 +750,24 @@ def skip_without_time_window_fields(case):
 		case.skipTest("Pricing Rule From Time / To Time custom fields are not installed")
 
 def make_time_window_pricing_rule(from_time, to_time, discount_percentage, title=None, priority=1):
+	"""A rule in Working Hours Mode: the times are a window that repeats on every valid day."""
 	title = title or "_Test Time Window Pricing Rule"
 	make_pricing_rule(selling=1, discount_percentage=discount_percentage, title=title, priority=priority)
-	frappe.db.set_value("Pricing Rule", title, {"from_time": from_time, "to_time": to_time})
+	frappe.db.set_value("Pricing Rule", title, {"from_time": from_time, "to_time": to_time,
+		"use_daily_time_restriction": 1})
 
-def discount_at(posting_time):
-	"""Discount percentage the selection returns for a transaction posted at this time."""
+def make_datetime_range_pricing_rule(valid_from, from_time, valid_upto, to_time, discount_percentage,
+		title=None, priority=1):
+	"""A rule in continuous mode: date + time form one start and one end moment."""
+	title = title or "_Test Datetime Range Pricing Rule"
+	make_pricing_rule(selling=1, discount_percentage=discount_percentage, title=title, priority=priority)
+	frappe.db.set_value("Pricing Rule", title, {"valid_from": valid_from, "valid_upto": valid_upto,
+		"from_time": from_time, "to_time": to_time, "use_daily_time_restriction": 0})
+
+def discount_at(posting_time, transaction_date=None):
+	"""Discount percentage the selection returns for a transaction posted at this time (today unless told otherwise)."""
 	args = pricing_rule_args()
+	args.transaction_date = transaction_date or nowdate()
 	args.posting_time = posting_time
 	return get_item_details(args).get("discount_percentage") or 0
 

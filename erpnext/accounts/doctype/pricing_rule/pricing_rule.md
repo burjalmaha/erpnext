@@ -100,29 +100,41 @@ These four fields plus the Calculate button form a small "what-if" calculator th
 
 ## Time-of-day validity
 
-The standard **Valid From** and **Valid Upto** dates decide *which days* a rule is live. These two fields decide *which hours within each of those days* it is live — a happy hour, a breakfast offer, a night-shift price. Both fields are optional. A rule with both fields empty applies all day, so every rule created before these fields existed keeps behaving exactly as it did.
+The standard **Valid From** and **Valid Upto** dates decide *when* a rule is live. **From Time** and **To Time** refine that to the clock, and the **Working Hours Mode** checkbox decides how the four values are read together. Both time fields are optional. A rule with both of them empty applies for its whole date range, in either mode, so every rule created before these fields existed keeps behaving exactly as it did.
+
+### Working Hours Mode
+- **What it controls:** Whether From Time / To Time are a **daily window** that repeats on every valid day (checked), or the **clock part of the start and end dates** of one continuous range (unchecked).
+- **Effect when set / enabled:**
+  - **Checked (Working Hours Mode):** Valid From / Valid Upto decide the days; From Time / To Time decide the hours *within each of those days* — a happy hour, a breakfast offer, a night-shift price. Outside those hours, on any of the days, the rule is not offered.
+  - **Unchecked (continuous range, the default for new rules):** Valid From + From Time is the single moment the rule starts, and Valid Upto + To Time is the single moment it stops. The rule is live for the whole stretch in between, across midnight and across as many days as the range spans.
+- **How it works:**
+  1. Every time a price is worked out — on a quotation, order, invoice, purchase document, at the POS, or on the Item Board — the system first narrows the rules down to those whose date range covers the transaction's date.
+  2. It then takes the transaction's date and time together as one moment and asks each surviving rule, in its own mode, whether it is live at that moment.
+  3. The time it uses is the document's own **Posting Time** where the document has one (sales invoices, purchase invoices, POS invoices, delivery notes). Documents that only carry a date — quotations, sales orders, purchase orders — are judged at the current time instead. Because the document's own posting date and time are used, re-saving a backdated invoice re-prices it at the moment it was posted, not at the moment you happen to be editing it.
+  4. All of these values are compared in the system time zone (System Settings → Time Zone), which is the zone posting dates and times are stored in, so no conversion takes place.
+- **Example (checked):** Valid From 01-01-2027, Valid Upto 05-01-2027, From Time 08:00, To Time 18:00. The rule applies on 01-01 at 09:00 and on 03-01 at 10:00, but not on 01-01 at 19:00, not on 03-01 at 23:00, and not at all on 06-01.
+- **Example (unchecked):** Valid From 01-01-2027, From Time 07:00, Valid Upto 02-01-2027, To Time 06:00. The rule applies from 01-01 07:00:00 through 02-01 06:00:00 without a break — at 15:00, at 23:59, at 00:00 and at 03:00 alike. At 06:59 on 01-01 and at 06:01 on 02-01 it does not.
+- **Related settings:** From Time, To Time, Valid From, Valid Upto. The checkbox is off on every rule that existed before it was introduced. A rule that already carries a From Time or To Time was, until then, always read as a daily window, so tick the checkbox on any such rule that should keep that behaviour; rules with no times behave the same either way and need nothing.
 
 ### From Time
-- **What it controls:** The time of day the rule starts applying, on every day inside its valid-from / valid-upto range.
-- **Effect when set / enabled:** Before this time the rule is not offered at all — the item is priced as if the rule did not exist. Leaving it empty and setting only a To Time means the rule applies from the start of the day until that To Time.
+- **What it controls:** The clock time the rule starts applying — on every valid day in Working Hours Mode, or on the Valid From day only in continuous mode.
+- **Effect when set / enabled:** Before this time the rule is not offered at all — the item is priced as if the rule did not exist. Leaving it empty means the rule starts at the very beginning of the day: every day in Working Hours Mode, the Valid From day in continuous mode.
 - **How it works:**
-  1. Every time a price is worked out — on a quotation, order, invoice, purchase document or at the POS — the system first narrows the rules down to those valid on the transaction's date.
-  2. It then compares the transaction's time against this window and drops any rule whose window does not cover it.
-  3. The time it compares against is the document's own **Posting Time** where the document has one (sales invoices, purchase invoices, POS invoices, delivery notes). Documents that only carry a date — quotations, sales orders, purchase orders — are compared against the current time instead.
-  4. Because the document's own posting time is used, re-saving a backdated invoice re-prices it at the time it was posted, not at the time you happen to be editing it.
-- **Example:** A rule valid 1–31 March with From Time 16:00 and To Time 19:00 gives its discount on an invoice posted at 17:30 on 12 March, and gives nothing on an invoice posted at 20:00 the same day or at 17:30 on 2 April.
-- **Related settings:** Works together with **To Time** below and with the standard **Valid From** / **Valid Upto** dates, which decide the days.
+  1. The boundary is **inclusive**: a From Time of 09:00 applies at exactly 09:00:00.
+  2. In continuous mode the time needs a Valid From date to attach to; the form refuses to save a From Time without one. In Working Hours Mode a From Time with no dates simply applies every day from that time.
+- **Example:** Working Hours Mode, Valid From 1 March, Valid Upto 31 March, From Time 16:00, To Time 19:00: an invoice posted at 17:30 on 12 March gets the discount; one posted at 15:00 the same day, or at 17:30 on 2 April, does not.
+- **Related settings:** Works together with **To Time** and **Working Hours Mode**, and with the standard **Valid From** / **Valid Upto** dates.
 
 ### To Time
-- **What it controls:** The time of day the rule stops applying, on every day inside its valid-from / valid-upto range.
-- **Effect when set / enabled:** After this time the rule is no longer offered. Leaving it empty and setting only a From Time means the rule applies from that From Time until the end of the day.
+- **What it controls:** The clock time the rule stops applying — on every valid day in Working Hours Mode, or on the Valid Upto day only in continuous mode.
+- **Effect when set / enabled:** After this time the rule is no longer offered. Leaving it empty means the rule runs to the very end of the day: every day in Working Hours Mode, the Valid Upto day in continuous mode.
 - **How it works:**
-  1. Both boundaries are **inclusive**: a window of 09:00 to 17:00 still applies at exactly 09:00:00 and at exactly 17:00:00, and stops at 17:00:01.
-  2. If the To Time is **earlier** than the From Time, the window is read as crossing midnight. A window of 22:00 to 02:00 is live from 22:00 until midnight and again from midnight until 02:00.
-  3. An overnight window is still limited by the validity dates, so on the last valid day it runs from 22:00 to the end of that day, and on the first valid day it also covers the early-morning stretch up to 02:00.
-  4. If the To Time is set to exactly the same value as the From Time, the rule applies all day, just as it does when both fields are left empty. The only other reading would be a window one second long, which would leave the rule silently never firing.
-- **Example:** A night-shift rule with From Time 22:00 and To Time 02:00 applies to a POS sale rung up at 23:40 and to one at 01:15, but not to one at 14:00.
-- **Related settings:** Works together with **From Time** above. When several rules overlap at the same moment, the standard **Priority** field decides which one wins, exactly as it does without time windows.
+  1. The boundary is **inclusive**: a To Time of 17:00 still applies at exactly 17:00:00 and stops at 17:00:01.
+  2. **Working Hours Mode, To Time earlier than From Time:** the daily window crosses midnight. 22:00 to 06:00 is live from 22:00 until midnight and again from midnight until 06:00 — the check is "at or after 22:00 *or* at or before 06:00", not "between". The window is still limited by the validity dates, so on the last valid day it runs from 22:00 to the end of that day, and on the first valid day it also covers the early-morning stretch up to 06:00.
+  3. **Working Hours Mode, To Time equal to From Time:** the rule applies all day, just as it does with both fields empty. The only other reading would be a window one second long, which would leave the rule silently never firing.
+  4. **Continuous mode:** neither special case exists — the times are just the clock parts of the two dates. A To Time earlier than the From Time on a later date is simply a range that ends in the morning (22:00 → 06:00 the next day is one eight-hour stretch), and the form refuses to save a range whose start moment falls after its end moment (for example 18:00 → 08:00 on the same day).
+- **Example:** Working Hours Mode with From Time 22:00 and To Time 06:00 applies to a POS sale rung up at 23:40 and to one at 01:15, but not to one at 14:00. The same four values with Working Hours Mode off, Valid From 01-01-2027 and Valid Upto 02-01-2027, apply to exactly one night — 22:00 on 01-01 through 06:00 on 02-01 — and to nothing else in the range.
+- **Related settings:** Works together with **From Time** and **Working Hours Mode**. When several rules overlap at the same moment, the standard **Priority** field decides which one wins, exactly as it does without time windows.
 
 ---
 
