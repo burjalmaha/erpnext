@@ -83,6 +83,23 @@ These three options let you lock down how much a cashier can change item quantit
 - **Effect when enabled:** Returns are blocked on this register — attempting to return an invoice shows "You can't return an invoice from the main server."
 - **How it works:** In a multi-site setup the main server is the head-office copy, while branches sell and return locally. Flagging a profile as main server prevents refunds from being processed there so that returns are handled at the branch that made the sale.
 
+## Payment
+
+### Installment Providers
+- **What it controls:** Which buy-now-pay-later providers (Tamara, Tabby, ...) the cashier can choose in this register's payment window. Pick one or more **Installment Provider** records.
+- **Effect when set:** The payment window shows an **Installment Provider** list with these providers, plus an **Installment Amount**. Disabled providers are left out, and a provider with **Apply Tamara Rules** is only offered to cashiers whose row below has **Tamara** ticked.
+- **Effect when empty (the default):** The payment window is exactly as before — no provider list.
+- **How it works:**
+  1. The cashier picks a provider. The whole amount still due, after gift cards, loyalty and return credit, is offered to it.
+  2. The cashier can lower the amount and take the rest in cash, by card, or both. The card is only asked for what the provider and the cash do not cover.
+  3. The receipt names the provider and the amount it covered.
+  4. In **Casher Summary Plus** the provider's amount counts as installment sales, not cash. The **Sales Submission** gives each provider used by a cashier its own line and moves its takings out of the branch cash account into the provider's account.
+  5. A return of the sale goes back to the provider first, up to what it covered; only the rest comes out of the drawer or goes back to the card.
+- **Example:** This register lists *Tamara* and *Tabby*. A customer buys for 750, pays 300 in cash and puts 450 on Tabby. The cashier picks *Tabby*, sets the amount to 450 and keys 300 cash. The drawer is expected to hold 300; Tabby's 450 appears on its own line of the Sales Submission.
+- **Related settings:**
+  - **Installment Provider** — each provider's accounts and its **Apply Tamara Rules** switch.
+  - **Tamara**, **Return Tamara**, **Only Return Tamara** (per cashier, below) — also apply to providers with **Apply Tamara Rules**.
+
 ## Refunds
 
 ### Card Refund
@@ -134,10 +151,11 @@ The **Applicable for Users** table on this POS Profile lists the cashiers allowe
 
 ### Tamara (per cashier)
 - **What it controls:** Whether this cashier may mark a sale as a Tamara (buy-now-pay-later) payment.
-- **Effect when enabled:** The Tamara option appears in this cashier's payment screen; without it, they cannot flag a sale as Tamara.
+- **Effect when enabled:** The Tamara option appears in this cashier's payment screen; without it, they cannot flag a sale as Tamara. It also lets the cashier pick any provider in **Installment Providers** that has **Apply Tamara Rules** ticked.
+- **How it works:** While a provider is picked in the payment window, the Tamara box follows it — ticked for a provider with Tamara rules, unticked for any other — and is locked. Clearing the provider hands the box back.
 
 ### Return Tamara (per cashier)
-- **What it controls:** Whether this cashier may return an invoice that was originally sold on Tamara.
+- **What it controls:** Whether this cashier may return an invoice that was originally sold on Tamara — including a sale through a provider with **Apply Tamara Rules**.
 - **How it works:** On a return, if the original sale was Tamara and this is off, the return is blocked ("You don't have permission to return a Tamara invoice"). Non-Tamara returns are unaffected.
 
 ### Only Return Tamara (per cashier)
