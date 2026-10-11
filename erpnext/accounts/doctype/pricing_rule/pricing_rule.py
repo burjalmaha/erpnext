@@ -298,8 +298,19 @@ def get_pricing_rule_for_item(args, price_list_rate=0, doc=None, for_validate=Fa
 
 	update_args_for_pricing_rule(args)
 
-	pricing_rules = (get_applied_pricing_rules(args.get('pricing_rules'))
-		if for_validate and args.get("pricing_rules") else get_pricing_rules(args, doc))
+	if for_validate and args.get("pricing_rules"):
+		pricing_rules = get_applied_pricing_rules(args.get("pricing_rules"))
+	elif for_validate and is_stored_pos_invoice_row(args):
+		# A POS sale is priced once, when the till inserts it. Validating the stored
+		# invoice again -- the background submit, a submit from the desk days later, an
+		# edit -- may re-apply only what a row already records (the branch above), never
+		# go looking for rules that match now but did not at the sale: that moves a
+		# total the customer has already paid, and the gift-card / payment rows no
+		# longer cover it. ZA26482385 on za-ar was refused at submit over 19.15 of such
+		# discount found five days after the sale.
+		pricing_rules = []
+	else:
+		pricing_rules = get_pricing_rules(args, doc)
 
 	if pricing_rules:
 		rules = []
@@ -350,6 +361,19 @@ def get_pricing_rule_for_item(args, price_list_rate=0, doc=None, for_validate=Fa
 			item_details, args.get('item_code'))
 
 	return item_details
+
+def is_stored_pos_invoice_row(args):
+	"""Whether ``args`` describes a POS Invoice row that is already saved.
+
+	``child_docname`` is the row's own name. A row added to a draft gets its name
+	before validate but is not in the table yet, so it still gets priced; a row that
+	is in the table was priced when it was first saved and keeps that price.
+	"""
+	return bool(
+		args.get("doctype") == "POS Invoice"
+		and args.get("child_docname")
+		and frappe.db.exists("POS Invoice Item", args.get("child_docname"))
+	)
 
 def update_args_for_pricing_rule(args):
 	if not (args.item_group and args.brand):
