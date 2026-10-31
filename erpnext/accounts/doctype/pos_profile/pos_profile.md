@@ -83,7 +83,7 @@ These three options let you lock down how much a cashier can change item quantit
 - **Effect when enabled:** Returns are blocked on this register — attempting to return an invoice shows "You can't return an invoice from the main server."
 - **How it works:** In a multi-site setup the main server is the head-office copy, while branches sell and return locally. Flagging a profile as main server prevents refunds from being processed there so that returns are handled at the branch that made the sale.
 
-## Refunds
+## Card Payments and Refunds
 
 ### Card Refund
 - **What it controls:** Whether credit-card (Geidea) refunds are allowed on returns processed from this register — overriding the company-wide default for this specific POS Profile.
@@ -98,6 +98,20 @@ These three options let you lock down how much a cashier can change item quantit
 - **Related settings:**
   - **Custom Selling Settings → Enable Card Refund By Default** — the company-wide default this field overrides.
   - **POS Profile User → Card Refund** — a more specific, per-cashier override that takes priority over this field (see the next section).
+  - **Multiple Card Payments** (below) — lets one sale on this register take several card charges; a card refund then returns them one at a time.
+
+### Multiple Card Payments
+- **What it controls:** Whether one sale on this register may be paid with more than one card charge on the Geidea terminal — two cards, or a card for part of the bill and cash for the rest — overriding the company-wide switch for this POS Profile.
+- **Effect when set:** **Enabled** lets the cashier choose the amount of each card charge; **Disabled** keeps one charge for the whole remaining balance, as before; **Inherit** (the default) follows **Custom Selling Settings → Allow Multiple Card Payments per Invoice**, which is off out of the box.
+- **How it works:**
+  1. With it on, **Digital Payment** first asks for the amount to charge, prefilled with the balance still owed. A charge for the full balance closes the sale as before. A charge for less keeps the payment window open with the charge on show, so the cashier takes another card or keys the rest as cash and presses Submit.
+  2. Every approved charge is stored as its own row in the invoice's **Card Payments** table: terminal, RRN, auth code, STAN, amount and card.
+  3. A sale with an approved charge on it cannot be thrown away by Refresh, F5 or reloading the page. The cashier finishes the sale; if the customer wants the money back, the sale is returned.
+  4. A return refunds the card rows one at a time on the terminal, newest first.
+- **Example:** The company switch is off. You set this register's Multiple Card Payments to **Enabled**. A customer here pays a 358 bill with 200 on a mada card, 100 on a Visa card and 58 in cash. Every other register still charges one card for the whole balance.
+- **Related settings:**
+  - **Custom Selling Settings → Allow Multiple Card Payments per Invoice** — the company-wide switch this field overrides.
+  - **Card Refund** (above) — whether returns on this register may refund to the card at all.
 
 ## Stock
 
