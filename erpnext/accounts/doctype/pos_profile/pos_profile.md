@@ -22,6 +22,18 @@
 - **How it works:** Same mechanism as Sales Footer, but the system automatically switches to this footer when the receipt is a return rather than a sale, so refunds can carry different wording or legal text.
 - **Related settings:** **Sales Footer** (used for normal sales).
 
+### Sales Receipt Header
+- **What it controls:** An optional block printed at the **top** of every sale receipt from this register, above the title: a picture (a National Day message or a campaign, for example) and any text of the chosen Layout Markup.
+- **Effect when set:** The Layout Markup's **Receipt Header Image** prints at the paper's full width, followed by its Markup text. Outside the record's **Active From / Active To** dates nothing is printed, so a seasonal picture stops by itself.
+- **Effect when empty:** The receipt starts with its title, as before.
+- **How it works:** The picture is prepared for the receipt printer when the Layout Markup is saved on the main server, and travels with the record to the branch servers. Choose the record here once; to change the picture later, change the Layout Markup on the main server and every branch prints the new one.
+- **Related settings:** **Return Receipt Header** (the same for returns); **Layout Markup → Receipt Header Image**.
+
+### Return Receipt Header
+- **What it controls:** The same header for **return / refund** receipts from this register.
+- **Effect when empty:** Return receipts carry no header, even when sale receipts do.
+- **Related settings:** **Sales Receipt Header**.
+
 ## End of Day
 
 ### Postponing Transaction End of Day (in hours)
