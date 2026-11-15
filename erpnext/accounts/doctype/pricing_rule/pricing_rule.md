@@ -4,6 +4,12 @@
 
 ---
 
+## Made by a Price Rule Order
+
+### Price Rule Order
+- **What it controls:** Nothing; it names the **Price Rule Order** that made this rule. An approved order makes one rule per item, unit and sales warehouse of each of its branches; cancelling the order disables them all.
+- **Notes:** Read-only. It is text, not a link: Pricing Rules are copied to the branch servers and the order stays on the main server. Change such a rule through its order (cancel and amend) rather than by hand, so the **Price Rule Order Analysis** report stays true.
+
 ## Bundle / quantity-multiple discounts
 
 ### Is QTY Multiple?
